@@ -104,6 +104,24 @@ export const uploadVideo = async (formData, progressCallback) => {
   });
 };
 
+export const register = async (userData) => {
+  const response = await fetch(`${BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(userData),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Registration failed");
+  }
+  
+  return response.json();
+};
+
 export const login = async (credentials) => {
   const response = await fetch(`${BASE_URL}/auth/login`, {
     method: 'POST',
@@ -130,4 +148,93 @@ export const logout = async () => {
   
   if (!response.ok) throw new Error("Logout failed");
   return response.json();
+};
+
+// Channel related API functions
+export const createChannel = async (channelData) => {
+  try {
+    const response = await fetch(`${BASE_URL}/channels`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(channelData),
+    });
+    
+    // Check the content-type of the response
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // If not JSON, server might be down or returning HTML error page
+      console.error('Server response is not JSON. Server might be down or returning HTML.');
+      throw new Error("Server error: Not returning JSON. Is the server running?");
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to create channel");
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error in createChannel:', error);
+    throw error; // Re-throw the error since this is a user action that needs feedback
+  }
+};
+
+export const getUserChannel = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/channels/me`, {
+      credentials: 'include',
+    });
+    
+    // Check the content-type of the response
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // If not JSON, server might be down or returning HTML error page
+      console.error('Server response is not JSON. Server might be down or returning HTML.');
+      return null;
+    }
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null; // User doesn't have a channel yet
+      }
+      
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to fetch channel");
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error in getUserChannel:', error);
+    return null; // Return null so the app doesn't crash
+  }
+};
+
+export const checkUserHasChannel = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/channels/check/status`, {
+      credentials: 'include',
+    });
+    
+    // Check the content-type of the response
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // If not JSON, server might be down or returning HTML error page
+      console.error('Server response is not JSON. Server might be down or returning HTML.');
+      return { hasChannel: false, error: true };
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to check channel status");
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error in checkUserHasChannel:', error);
+    // Return a default value so the app doesn't crash
+    return { hasChannel: false, error: true };
+  }
 };

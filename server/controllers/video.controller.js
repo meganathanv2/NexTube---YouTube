@@ -1,5 +1,6 @@
 import cloudinary from "../utils/cloudinary.js";
 import Video from "../models/video.model.js";
+import User from "../models/user.model.js";
 import multer from "multer";
 import { promises as fs } from "fs";
 import path from "path";
@@ -39,6 +40,19 @@ export const upload = multer({
 
 export const uploadVideo = async (req, res) => {
   try {
+    // Check if user has a channel
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    if (!user.hasChannel) {
+      return res.status(403).json({ 
+        message: "You need to create a channel before uploading videos",
+        needsChannel: true
+      });
+    }
+    
     const { title, description } = req.body;
     const videoFile = req.files['video'][0];
     const thumbnailFile = req.files['thumbnail'][0];

@@ -6,6 +6,9 @@ import Home from "./pages/Home";
 import UploadPage from "./pages/UploadPage";
 import VideoPage from "./pages/VideoPage";
 import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import UserProfilePage from "./pages/UserProfilePage";
+import CreateChannelPage from "./pages/CreateChannelPage";
 import { AuthProvider, AuthContext } from './context/AuthContext';
 
 // Protected route component
@@ -31,6 +34,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
             <Route path="/video/:id" element={<VideoPage />} />
             <Route 
               path="/upload" 
@@ -39,6 +43,22 @@ function AppContent() {
                   <UploadPage />
                 </ProtectedRoute>
               } 
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <UserProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/create-channel"
+              element={
+                <ProtectedRoute>
+                  <CreateChannelPage />
+                </ProtectedRoute>
+              }
             />
           </Routes>
         </main>
