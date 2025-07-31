@@ -9,6 +9,12 @@ import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import UserProfilePage from "./pages/UserProfilePage";
 import CreateChannelPage from "./pages/CreateChannelPage";
+import UserVideosPage from "./pages/UserVideosPage";
+import HistoryPage from "./pages/HistoryPage";
+import LikedVideosPage from "./pages/LikedVideosPage";
+import WatchLaterPage from "./pages/WatchLaterPage";
+import PlaylistsPage from "./pages/PlaylistsPage";
+import PlaylistDetailPage from "./pages/PlaylistDetailPage";
 import { AuthProvider, AuthContext } from './context/AuthContext';
 
 // Protected route component
@@ -57,6 +63,54 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <CreateChannelPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/your-videos"
+              element={
+                <ProtectedRoute>
+                  <UserVideosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/history"
+              element={
+                <ProtectedRoute>
+                  <HistoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/liked-videos"
+              element={
+                <ProtectedRoute>
+                  <LikedVideosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/watch-later"
+              element={
+                <ProtectedRoute>
+                  <WatchLaterPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/playlists"
+              element={
+                <ProtectedRoute>
+                  <PlaylistsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/playlist/:id"
+              element={
+                <ProtectedRoute>
+                  <PlaylistDetailPage />
                 </ProtectedRoute>
               }
             />

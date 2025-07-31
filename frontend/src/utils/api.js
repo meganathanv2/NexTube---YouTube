@@ -1,6 +1,41 @@
 // src/utils/api.js
 const BASE_URL = "http://localhost:5000/api";
 
+// Helper function to get authenticated request headers
+export const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};
+
+// Check if the current authentication token is valid
+export const checkAuthStatus = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/auth/check/status`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      credentials: 'include', // Include cookies
+    });
+    
+    if (!response.ok) {
+      return { authenticated: false };
+    }
+    
+    const data = await response.json();
+    return { authenticated: true, user: data.user };
+  } catch (error) {
+    console.error("Auth check error:", error);
+    return { authenticated: false };
+  }
+};
+
 export const fetchVideos = async () => {
   const response = await fetch(`${BASE_URL}/videos`);
   if (!response.ok) throw new Error("Failed to fetch videos");
@@ -29,20 +64,29 @@ export const getRecommendedVideos = async (videoId) => {
 
 export const likeVideo = async (videoId) => {
   try {
+    console.log(`Sending like request for video ${videoId}`);
+    
+    // Use the helper function to get auth headers
+    const headers = getAuthHeaders();
+    console.log('Request headers:', headers);
+    
     const response = await fetch(`${BASE_URL}/videos/${videoId}/like`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
+      headers: headers,
+      credentials: 'include', // Important: Include cookies with the request
     });
+    
+    console.log(`Like response status: ${response.status}`);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('Like video error response:', errorData);
       throw new Error(errorData.message || "Failed to like video");
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log('Like video success response:', result);
+    return result;
   } catch (error) {
     console.error("Error liking video:", error);
     throw error;
@@ -51,22 +95,63 @@ export const likeVideo = async (videoId) => {
 
 export const dislikeVideo = async (videoId) => {
   try {
+    console.log(`Sending dislike request for video ${videoId}`);
+    
+    // Use the helper function to get auth headers
+    const headers = getAuthHeaders();
+    console.log('Request headers:', headers);
+    
     const response = await fetch(`${BASE_URL}/videos/${videoId}/dislike`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: headers,
+      credentials: 'include', // Important: Include cookies with the request
+    });
+    
+    console.log(`Dislike response status: ${response.status}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Dislike video error response:', errorData);
+      throw new Error(errorData.message || "Failed to dislike video");
+    }
+    
+    const result = await response.json();
+    console.log('Dislike video success response:', result);
+    return result;
+  } catch (error) {
+    console.error("Error disliking video:", error);
+    throw error;
+  }
+};
+
+// Get current user's videos
+export const getUserVideos = async () => {
+  try {
+    const headers = getAuthHeaders();
+    
+    const response = await fetch(`${BASE_URL}/videos/user/me`, {
+      method: 'GET',
+      headers: headers,
       credentials: 'include',
     });
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || "Failed to dislike video");
+      
+      // Special case for when user doesn't have a channel
+      if (response.status === 403 && errorData.hasChannel === false) {
+        return { 
+          hasChannel: false, 
+          videos: [] 
+        };
+      }
+      
+      throw new Error(errorData.message || "Failed to fetch user videos");
     }
     
     return await response.json();
   } catch (error) {
-    console.error("Error disliking video:", error);
+    console.error("Error fetching user videos:", error);
     throw error;
   }
 };
@@ -123,21 +208,42 @@ export const register = async (userData) => {
 };
 
 export const login = async (credentials) => {
-  const response = await fetch(`${BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(credentials),
-  });
+  console.log("Attempting login with:", credentials.email);
   
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || "Login failed");
+  try {
+    const response = await fetch(`${BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(credentials),
+    });
+    
+    // Log response status for debugging
+    console.log("Login API response status:", response.status);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Login API error:", errorData);
+      throw new Error(errorData.message || "Login failed");
+    }
+    
+    const data = await response.json();
+    
+    // Save token to localStorage
+    if (data.token) {
+      console.log("Received token (first 15 chars):", data.token.substring(0, 15) + "...");
+      localStorage.setItem('token', data.token);
+    } else {
+      console.warn("No token received in login response");
+    }
+    
+    return data;
+  } catch (error) {
+    console.error("Login request error:", error);
+    throw error;
   }
-  
-  return response.json();
 };
 
 export const logout = async () => {
@@ -236,5 +342,271 @@ export const checkUserHasChannel = async () => {
     console.error('Error in checkUserHasChannel:', error);
     // Return a default value so the app doesn't crash
     return { hasChannel: false, error: true };
+  }
+};
+
+// Watch History API functions
+export const fetchWatchHistory = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/users/history`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to fetch watch history");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching watch history:", error);
+    throw error;
+  }
+};
+
+// Liked Videos API functions
+export const fetchLikedVideos = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/users/liked-videos`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to fetch liked videos");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching liked videos:", error);
+    throw error;
+  }
+};
+
+// Watch Later API functions
+export const fetchWatchLaterVideos = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/users/watch-later`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to fetch watch later videos");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching watch later videos:", error);
+    throw error;
+  }
+};
+
+export const addToWatchLater = async (videoId) => {
+  try {
+    const response = await fetch(`${BASE_URL}/users/watch-later/${videoId}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to add video to watch later");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error adding to watch later:", error);
+    throw error;
+  }
+};
+
+export const removeFromWatchLater = async (videoId) => {
+  try {
+    const response = await fetch(`${BASE_URL}/users/watch-later/${videoId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to remove video from watch later");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error removing from watch later:", error);
+    throw error;
+  }
+};
+
+// Playlist API functions
+export const fetchPlaylists = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/playlists`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to fetch playlists");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching playlists:", error);
+    throw error;
+  }
+};
+
+export const fetchPlaylistDetails = async (playlistId) => {
+  try {
+    const response = await fetch(`${BASE_URL}/playlists/${playlistId}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to fetch playlist details");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching playlist details:", error);
+    throw error;
+  }
+};
+
+export const createPlaylist = async (playlistData) => {
+  try {
+    const response = await fetch(`${BASE_URL}/playlists`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(playlistData),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to create playlist");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error creating playlist:", error);
+    throw error;
+  }
+};
+
+export const deletePlaylist = async (playlistId) => {
+  try {
+    const response = await fetch(`${BASE_URL}/playlists/${playlistId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to delete playlist");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error deleting playlist:", error);
+    throw error;
+  }
+};
+
+export const addVideoToPlaylist = async (playlistId, videoId) => {
+  try {
+    const response = await fetch(`${BASE_URL}/playlists/${playlistId}/videos/${videoId}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to add video to playlist");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error adding video to playlist:", error);
+    throw error;
+  }
+};
+
+export const removeVideoFromPlaylist = async (playlistId, videoId) => {
+  try {
+    const response = await fetch(`${BASE_URL}/playlists/${playlistId}/videos/${videoId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to remove video from playlist");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error removing video from playlist:", error);
+    throw error;
+  }
+};
+
+// Fetch videos uploaded by the current user
+export const fetchUserVideos = async () => {
+  try {
+    const headers = getAuthHeaders();
+    
+    const response = await fetch(`${BASE_URL}/videos/user/videos`, {
+      method: 'GET',
+      headers: headers,
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to fetch user videos");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching user videos:", error);
+    throw error;
+  }
+};
+
+// Delete a video by ID
+export const deleteVideo = async (videoId) => {
+  try {
+    const headers = getAuthHeaders();
+    
+    const response = await fetch(`${BASE_URL}/videos/${videoId}`, {
+      method: 'DELETE',
+      headers: headers,
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to delete video");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error deleting video:", error);
+    throw error;
   }
 };

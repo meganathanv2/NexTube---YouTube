@@ -24,10 +24,22 @@ const LoginPage = () => {
     try {
       setLoading(true);
       const userData = await apiLogin({ email, password });
-      login(userData.user);
+      console.log('Login response:', userData);
+      
+      if (userData.token) {
+        // Store token in localStorage for future use
+        localStorage.setItem('token', userData.token);
+        console.log('Token saved to localStorage');
+      } else {
+        console.warn('No token received from server');
+      }
+      
+      // Pass both user data and token to the login function
+      login(userData.user, userData.token);
       navigate('/');
     } catch (err) {
       setError(err.message || 'Login failed');
+      console.error('Login error:', err);
     } finally {
       setLoading(false);
     }

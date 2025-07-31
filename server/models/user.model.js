@@ -5,7 +5,13 @@ const userSchema = new mongoose.Schema({
   email:    { type: String, required: true, unique: true },
   password: { type: String, required: true },
   profilePic: { type: String, default: "" },
-  hasChannel: { type: Boolean, default: false }
+  hasChannel: { type: Boolean, default: false },
+  likedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
+  watchLater: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
+  history: [{ 
+    video: { type: mongoose.Schema.Types.ObjectId, ref: 'Video' },
+    watchedAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 export default mongoose.model("User", userSchema);

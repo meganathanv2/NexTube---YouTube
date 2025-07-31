@@ -29,8 +29,26 @@ const VideoPage = () => {
           console.log("Checking likes for user ID:", userId);
           console.log("Video likes:", videoData.likes);
           console.log("Video dislikes:", videoData.dislikes);
-          setIsLiked(videoData.likes?.some(id => id === userId));
-          setIsDisliked(videoData.dislikes?.some(id => id === userId));
+          
+          // Convert ObjectId to string for proper comparison
+          const userIdStr = userId.toString();
+          setIsLiked(videoData.likes?.some(likeId => {
+            const idStr = typeof likeId === 'string' ? likeId : likeId.toString();
+            return idStr === userIdStr;
+          }));
+          setIsDisliked(videoData.dislikes?.some(dislikeId => {
+            const idStr = typeof dislikeId === 'string' ? dislikeId : dislikeId.toString();
+            return idStr === userIdStr;
+          }));
+          
+          // These console logs won't show updated state due to React's state batching
+          // They'll show the previous state values
+          console.log("isLiked state will be updated to:", isLiked);
+          console.log("isDisliked state will be updated to:", isDisliked);
+        } else {
+          // Reset like/dislike state when not logged in
+          setIsLiked(false);
+          setIsDisliked(false);
         }
         
         try {
@@ -53,90 +71,146 @@ const VideoPage = () => {
   }, [id, user]);
   
   const handleLike = async () => {
-    if (!user) return alert("Please log in to like videos");
+    if (!user) {
+      alert("Please log in to like videos");
+      return;
+    }
+    
+    // Check if we have a token (but don't check it directly to avoid alert)
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn("No token found in localStorage, but trying request anyway");
+    }
     
     try {
       // Use either id or _id to ensure compatibility
       const userId = user.id || user._id;
       console.log("Liking video with user ID:", userId);
       
-      await likeVideo(id);
+      const response = await likeVideo(id);
+      console.log("Like response:", response);
       
-      // Update UI immediately for better UX
-      setVideo(prev => {
-        // If already liked, remove like
-        if (isLiked) {
-          return {
-            ...prev,
-            likes: prev.likes.filter(likeId => likeId !== userId)
-          };
-        }
-        
-        // If previously disliked, remove dislike and add like
-        if (isDisliked) {
-          return {
-            ...prev,
-            likes: [...prev.likes, userId],
-            dislikes: prev.dislikes.filter(dislikeId => dislikeId !== userId)
-          };
-        }
-        
-        // Otherwise add like
-        return {
+      // Update the video state with the new likes/dislikes arrays from the response
+      if (response.likes && response.dislikes) {
+        setVideo(prev => ({
           ...prev,
-          likes: [...prev.likes, userId]
-        };
-      });
-      
-      setIsLiked(!isLiked);
-      if (isDisliked) setIsDisliked(false);
-      
+          likes: response.likes,
+          dislikes: response.dislikes
+        }));
+        
+        // Update UI state based on presence of userId in arrays
+        const userIdStr = userId.toString();
+        setIsLiked(response.likes.some(id => id === userId || id.toString() === userIdStr));
+        setIsDisliked(response.dislikes.some(id => id === userId || id.toString() === userIdStr));
+      } else {
+        // Fallback to the old UI update logic if the response doesn't include arrays
+        setVideo(prev => {
+          // If already liked, remove like
+          if (isLiked) {
+            return {
+              ...prev,
+              likes: prev.likes.filter(likeId => likeId.toString() !== userId.toString())
+            };
+          }
+          
+          // If previously disliked, remove dislike and add like
+          if (isDisliked) {
+            return {
+              ...prev,
+              likes: [...prev.likes, userId],
+              dislikes: prev.dislikes.filter(dislikeId => dislikeId.toString() !== userId.toString())
+            };
+          }
+          
+          // Otherwise add like
+          return {
+            ...prev,
+            likes: [...prev.likes, userId]
+          };
+        });
+        
+        setIsLiked(!isLiked);
+        if (isDisliked) setIsDisliked(false);
+      }
     } catch (err) {
       console.error("Failed to like video:", err);
+      if (err.message && err.message.includes("Unauthorized")) {
+        alert("Your session has expired. Please log in again.");
+      } else {
+        alert("Failed to like video: " + (err.message || "Unknown error"));
+      }
     }
   };
   
   const handleDislike = async () => {
-    if (!user) return alert("Please log in to dislike videos");
+    if (!user) {
+      alert("Please log in to dislike videos");
+      return;
+    }
+    
+    // Check if we have a token (but don't check it directly to avoid alert)
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn("No token found in localStorage, but trying request anyway");
+    }
     
     try {
       // Use either id or _id to ensure compatibility
       const userId = user.id || user._id;
       console.log("Disliking video with user ID:", userId);
       
-      await dislikeVideo(id);
+      const response = await dislikeVideo(id);
+      console.log("Dislike response:", response);
       
-      // Update UI immediately for better UX
-      setVideo(prev => {
-        // If already disliked, remove dislike
-        if (isDisliked) {
-          return {
-            ...prev,
-            dislikes: prev.dislikes.filter(dislikeId => dislikeId !== userId)
-          };
-        }
-        
-        // If previously liked, remove like and add dislike
-        if (isLiked) {
-          return {
-            ...prev,
-            dislikes: [...prev.dislikes, userId],
-            likes: prev.likes.filter(likeId => likeId !== userId)
-          };
-        }
-        
-        // Otherwise add dislike
-        return {
+      // Update the video state with the new likes/dislikes arrays from the response
+      if (response.likes && response.dislikes) {
+        setVideo(prev => ({
           ...prev,
-          dislikes: [...prev.dislikes, userId]
-        };
-      });
-      
-      setIsDisliked(!isDisliked);
-      if (isLiked) setIsLiked(false);
-      
+          likes: response.likes,
+          dislikes: response.dislikes
+        }));
+        
+        // Update UI state based on presence of userId in arrays
+        const userIdStr = userId.toString();
+        setIsLiked(response.likes.some(id => id === userId || id.toString() === userIdStr));
+        setIsDisliked(response.dislikes.some(id => id === userId || id.toString() === userIdStr));
+      } else {
+        // Fallback to the old UI update logic if the response doesn't include arrays
+        setVideo(prev => {
+          // If already disliked, remove dislike
+          if (isDisliked) {
+            return {
+              ...prev,
+              dislikes: prev.dislikes.filter(dislikeId => dislikeId.toString() !== userId.toString())
+            };
+          }
+          
+          // If previously liked, remove like and add dislike
+          if (isLiked) {
+            return {
+              ...prev,
+              dislikes: [...prev.dislikes, userId],
+              likes: prev.likes.filter(likeId => likeId.toString() !== userId.toString())
+            };
+          }
+          
+          // Otherwise add dislike
+          return {
+            ...prev,
+            dislikes: [...prev.dislikes, userId]
+          };
+        });
+        
+        setIsDisliked(!isDisliked);
+        if (isLiked) setIsLiked(false);
+      }
     } catch (err) {
       console.error("Failed to dislike video:", err);
+      if (err.message && err.message.includes("Unauthorized")) {
+        alert("Your session has expired. Please log in again.");
+      } else {
+        alert("Failed to dislike video: " + (err.message || "Unknown error"));
+      }
     }
   };
   

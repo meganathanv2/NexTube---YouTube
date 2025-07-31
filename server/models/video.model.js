@@ -7,6 +7,7 @@ const videoSchema = new mongoose.Schema({
   thumbnailUrl: String,
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   views: { type: Number, default: 0 },
+  viewedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Track unique viewers
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   dislikes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   comments: [
