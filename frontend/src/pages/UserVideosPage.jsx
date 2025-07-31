@@ -13,12 +13,33 @@ const UserVideosPage = () => {
     const loadVideos = async () => {
       try {
         setLoading(true);
+        setError(null); // Clear any previous errors
+        
+        console.log("Fetching user videos...");
         const data = await fetchUserVideos();
-        setVideos(data);
-        setError(null);
+        console.log("User videos data:", data);
+        
+        // Handle the response structure correctly
+        if (data.hasChannel === false) {
+          setError('You need to create a channel before uploading videos');
+          setVideos([]);
+        } else {
+          // Handle both possible response structures
+          const videoArray = data.videos || data;
+          console.log("Video array:", videoArray);
+          
+          if (Array.isArray(videoArray)) {
+            setVideos(videoArray);
+          } else {
+            console.error("Unexpected data format:", videoArray);
+            setError('Received unexpected data format from server');
+            setVideos([]);
+          }
+        }
       } catch (err) {
         console.error('Error fetching user videos:', err);
         setError('Failed to load your videos. Please try again later.');
+        setVideos([]);
       } finally {
         setLoading(false);
       }
@@ -53,13 +74,23 @@ const UserVideosPage = () => {
   if (error) {
     return (
       <div className="text-center py-10">
-        <p className="text-red-500">{error}</p>
-        <button 
-          onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Try Again
-        </button>
+        <h1 className="text-2xl font-bold mb-4">Your Videos</h1>
+        <p className="text-red-500 mb-4">{error}</p>
+        {error.includes('create a channel') ? (
+          <Link 
+            to="/create-channel" 
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Create a Channel
+          </Link>
+        ) : (
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Try Again
+          </button>
+        )}
       </div>
     );
   }

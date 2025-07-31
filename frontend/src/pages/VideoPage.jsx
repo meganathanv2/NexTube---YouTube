@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSingleVideo, getRecommendedVideos, likeVideo, dislikeVideo } from '../utils/api';
+import { getSingleVideo, getRecommendedVideos, likeVideo, dislikeVideo, addToHistory } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 
 const VideoPage = () => {
@@ -22,13 +22,19 @@ const VideoPage = () => {
         const videoData = await getSingleVideo(id);
         setVideo(videoData);
         
+        // Add to watch history when video loads
+        if (user) {
+          try {
+            await addToHistory(id);
+          } catch (historyErr) {
+            // Non-critical error, continue with video loading
+          }
+        }
+        
         // Check if user has liked/disliked the video
         if (user) {
           // Check both id and _id to handle different formats
           const userId = user.id || user._id;
-          console.log("Checking likes for user ID:", userId);
-          console.log("Video likes:", videoData.likes);
-          console.log("Video dislikes:", videoData.dislikes);
           
           // Convert ObjectId to string for proper comparison
           const userIdStr = userId.toString();
@@ -43,8 +49,7 @@ const VideoPage = () => {
           
           // These console logs won't show updated state due to React's state batching
           // They'll show the previous state values
-          console.log("isLiked state will be updated to:", isLiked);
-          console.log("isDisliked state will be updated to:", isDisliked);
+          
         } else {
           // Reset like/dislike state when not logged in
           setIsLiked(false);
@@ -56,12 +61,10 @@ const VideoPage = () => {
           const recommended = await getRecommendedVideos(id);
           setRecommendedVideos(recommended || []);
         } catch (recError) {
-          console.error("Failed to load recommended videos:", recError);
           setRecommendedVideos([]); // Set empty array if recommendations fail
         }
       } catch (err) {
         setError(err.message || 'Failed to load video');
-        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -69,6 +72,31 @@ const VideoPage = () => {
     
     fetchVideo();
   }, [id, user]);
+  
+  // Add a useEffect to track video plays and add to watch history
+  useEffect(() => {
+    // Only add to history if user is logged in and video has loaded
+    if (user && video && videoRef.current) {
+      const videoElement = videoRef.current;
+      
+      // Function to handle when the video starts playing
+      const handleVideoPlay = async () => {
+        try {
+          const result = await addToHistory(id);
+        } catch (err) {
+          // Non-critical error, allow video to continue playing
+        }
+      };
+      
+      // Add event listener for the play event
+      videoElement.addEventListener('play', handleVideoPlay);
+      
+      // Clean up the event listener on unmount
+      return () => {
+        videoElement.removeEventListener('play', handleVideoPlay);
+      };
+    }
+  }, [id, user, video]);
   
   const handleLike = async () => {
     if (!user) {
@@ -78,17 +106,12 @@ const VideoPage = () => {
     
     // Check if we have a token (but don't check it directly to avoid alert)
     const token = localStorage.getItem('token');
-    if (!token) {
-      console.warn("No token found in localStorage, but trying request anyway");
-    }
     
     try {
       // Use either id or _id to ensure compatibility
       const userId = user.id || user._id;
-      console.log("Liking video with user ID:", userId);
       
       const response = await likeVideo(id);
-      console.log("Like response:", response);
       
       // Update the video state with the new likes/dislikes arrays from the response
       if (response.likes && response.dislikes) {
@@ -148,19 +171,14 @@ const VideoPage = () => {
       return;
     }
     
-    // Check if we have a token (but don't check it directly to avoid alert)
+    // Check if we have a token
     const token = localStorage.getItem('token');
-    if (!token) {
-      console.warn("No token found in localStorage, but trying request anyway");
-    }
     
     try {
       // Use either id or _id to ensure compatibility
       const userId = user.id || user._id;
-      console.log("Disliking video with user ID:", userId);
       
       const response = await dislikeVideo(id);
-      console.log("Dislike response:", response);
       
       // Update the video state with the new likes/dislikes arrays from the response
       if (response.likes && response.dislikes) {

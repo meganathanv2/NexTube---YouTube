@@ -141,19 +141,46 @@ export const getSingleVideo = async (req, res) => {
       }
       
       // Add to user's history regardless of whether this counts as a new view
-      // Find the user and update their history
-      await User.findByIdAndUpdate(
-        userId,
-        {
-          // Add to the beginning of the history array
-          $push: {
-            history: {
-              $each: [{ video: videoId, watchedAt: new Date() }],
-              $position: 0
-            }
-          }
+      console.log(`Adding video ${videoId} to user ${userId}'s history`);
+      
+      try {
+        // First, get the user to check their history status
+        const currentUser = await User.findById(userId);
+        
+        // Initialize history array if it doesn't exist or isn't an array
+        if (!currentUser.history || !Array.isArray(currentUser.history)) {
+          console.log(`Initializing history array for user ${userId}`);
+          await User.findByIdAndUpdate(
+            userId,
+            { $set: { history: [] } }
+          );
         }
-      );
+        
+        // Remove this video from history if it exists
+        await User.findByIdAndUpdate(
+          userId,
+          { $pull: { history: { video: videoId } } }
+        );
+        
+        // Add the video to the beginning of history
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          {
+            $push: {
+              history: {
+                $each: [{ video: videoId, watchedAt: new Date() }],
+                $position: 0
+              }
+            }
+          },
+          { new: true }
+        );
+        
+        console.log(`Updated history for user ${userId}, new history length: ${updatedUser.history.length}`);
+      } catch (error) {
+        console.error("Error updating user watch history:", error);
+        // Continue execution even if adding to history fails
+      }
     } else {
       // For non-logged-in users, use IP-based tracking
       const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;

@@ -1,44 +1,72 @@
 import { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { fetchWatchLaterVideos } from '../utils/api';
+import { fetchWatchHistory, clearWatchHistory } from '../utils/api';
 
-const WatchLaterPage = () => {
-  const [videos, setVideos] = useState([]);
+const WatchHistoryPage = () => {
+  const [history, setHistory] = useState([]);
+  const [totalPages, setTotalPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { user } = useContext(AuthContext);
+  const limit = 10; // Matches backend default
 
   useEffect(() => {
-    const loadWatchLaterVideos = async () => {
+    const loadWatchHistory = async () => {
       try {
         setLoading(true);
-        const data = await fetchWatchLaterVideos();
-        setVideos(data);
+        const data = await fetchWatchHistory(currentPage, limit);
+        setHistory(data.history);
+        setTotalPages(data.totalPages);
+        setCurrentPage(data.currentPage);
         setError(null);
       } catch (err) {
-        console.error('Error fetching watch later videos:', err);
-        setError('Failed to load watch later videos. Please try again later.');
+        console.error('Error fetching watch history:', err);
+        setError('Failed to load watch history. Please try again later.');
       } finally {
         setLoading(false);
       }
     };
 
     if (user) {
-      loadWatchLaterVideos();
+      loadWatchHistory();
     }
-  }, [user]);
+  }, [user, currentPage]);
 
-  const handleRemoveVideo = async (videoId) => {
+  const handleClearHistory = async () => {
     try {
-      // Implement this function in your API
-      // await removeFromWatchLater(videoId);
-      setVideos(videos.filter(video => video._id !== videoId));
+      await clearWatchHistory();
+      setHistory([]);
+      setTotalPages(0);
+      setCurrentPage(1);
+      setError(null);
     } catch (err) {
-      console.error('Error removing video from watch later:', err);
-      setError('Failed to remove video. Please try again.');
+      console.error('Error clearing watch history:', err);
+      setError('Failed to clear watch history. Please try again.');
     }
   };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="text-center py-10">
+        <h1 className="text-2xl font-bold mb-4">Watch History</h1>
+        <p className="mb-4">Please log in to view your watch history.</p>
+        <Link
+          to="/login"
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Log In
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -52,7 +80,7 @@ const WatchLaterPage = () => {
     return (
       <div className="text-center py-10">
         <p className="text-red-500">{error}</p>
-        <button 
+        <button
           onClick={() => window.location.reload()}
           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
@@ -62,13 +90,13 @@ const WatchLaterPage = () => {
     );
   }
 
-  if (videos.length === 0) {
+  if (history.length === 0) {
     return (
       <div className="text-center py-10">
-        <h1 className="text-2xl font-bold mb-4">Watch Later</h1>
-        <p className="mb-4">You haven't added any videos to watch later.</p>
-        <Link 
-          to="/" 
+        <h1 className="text-2xl font-bold mb-4">Watch History</h1>
+        <p className="mb-4">You haven't watched any videos yet.</p>
+        <Link
+          to="/"
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           Discover Videos
@@ -79,15 +107,23 @@ const WatchLaterPage = () => {
 
   return (
     <div className="container mx-auto px-4">
-      <h1 className="text-2xl font-bold mb-6">Watch Later</h1>
-      
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Watch History</h1>
+        <button
+          onClick={handleClearHistory}
+          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+        >
+          Clear History
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {videos.map(video => (
+        {history.map(video => (
           <div key={video._id} className="bg-white rounded-lg shadow overflow-hidden">
             <Link to={`/video/${video._id}`}>
-              <img 
-                src={video.thumbnailUrl} 
-                alt={video.title} 
+              <img
+                src={video.thumbnailUrl || 'https://via.placeholder.com/300x200'}
+                alt={video.title}
                 className="w-full h-48 object-cover"
               />
             </Link>
@@ -95,29 +131,48 @@ const WatchLaterPage = () => {
               <Link to={`/video/${video._id}`}>
                 <h2 className="text-lg font-semibold mb-2 hover:text-blue-500">{video.title}</h2>
               </Link>
-              <p className="text-gray-600 text-sm mb-2">{video.views} views • {new Date(video.createdAt).toLocaleDateString()}</p>
+              <p className="text-gray-600 text-sm mb-2">
+                {video.views} views • Watched on {new Date(video.viewedAt).toLocaleDateString()}
+              </p>
               <div className="flex items-center mb-2">
                 <Link to={`/channel/${video.createdBy._id}`} className="flex items-center">
-                  <img 
-                    src={video.createdBy.profilePic || 'https://via.placeholder.com/40'} 
+                  <img
+                    src={video.createdBy.profilePic || 'https://via.placeholder.com/40'}
                     alt={video.createdBy.username}
-                    className="w-8 h-8 rounded-full mr-2" 
+                    className="w-8 h-8 rounded-full mr-2"
                   />
                   <span className="text-sm text-gray-700">{video.createdBy.username}</span>
                 </Link>
               </div>
-              <button
-                onClick={() => handleRemoveVideo(video._id)}
-                className="text-sm text-red-500 hover:text-red-700"
-              >
-                Remove from Watch Later
-              </button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-6 space-x-2">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded disabled:opacity-50 hover:bg-gray-300"
+          >
+            Previous
+          </button>
+          <span className="px-4 py-2">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded disabled:opacity-50 hover:bg-gray-300"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
-export default WatchLaterPage;
+export default WatchHistoryPage;

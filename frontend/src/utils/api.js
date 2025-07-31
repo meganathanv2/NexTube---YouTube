@@ -31,7 +31,6 @@ export const checkAuthStatus = async () => {
     const data = await response.json();
     return { authenticated: true, user: data.user };
   } catch (error) {
-    console.error("Auth check error:", error);
     return { authenticated: false };
   }
 };
@@ -57,18 +56,14 @@ export const getRecommendedVideos = async (videoId) => {
     }
     return response.json();
   } catch (error) {
-    console.error("Error fetching recommended videos:", error);
     return []; // Return empty array instead of throwing to prevent UI breaking
   }
 };
 
 export const likeVideo = async (videoId) => {
   try {
-    console.log(`Sending like request for video ${videoId}`);
-    
     // Use the helper function to get auth headers
     const headers = getAuthHeaders();
-    console.log('Request headers:', headers);
     
     const response = await fetch(`${BASE_URL}/videos/${videoId}/like`, {
       method: 'PUT',
@@ -76,30 +71,22 @@ export const likeVideo = async (videoId) => {
       credentials: 'include', // Important: Include cookies with the request
     });
     
-    console.log(`Like response status: ${response.status}`);
-    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('Like video error response:', errorData);
       throw new Error(errorData.message || "Failed to like video");
     }
     
     const result = await response.json();
-    console.log('Like video success response:', result);
     return result;
   } catch (error) {
-    console.error("Error liking video:", error);
     throw error;
   }
 };
 
 export const dislikeVideo = async (videoId) => {
   try {
-    console.log(`Sending dislike request for video ${videoId}`);
-    
     // Use the helper function to get auth headers
     const headers = getAuthHeaders();
-    console.log('Request headers:', headers);
     
     const response = await fetch(`${BASE_URL}/videos/${videoId}/dislike`, {
       method: 'PUT',
@@ -107,19 +94,14 @@ export const dislikeVideo = async (videoId) => {
       credentials: 'include', // Important: Include cookies with the request
     });
     
-    console.log(`Dislike response status: ${response.status}`);
-    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('Dislike video error response:', errorData);
       throw new Error(errorData.message || "Failed to dislike video");
     }
     
     const result = await response.json();
-    console.log('Dislike video success response:', result);
     return result;
   } catch (error) {
-    console.error("Error disliking video:", error);
     throw error;
   }
 };
@@ -129,7 +111,7 @@ export const getUserVideos = async () => {
   try {
     const headers = getAuthHeaders();
     
-    const response = await fetch(`${BASE_URL}/videos/user/me`, {
+    const response = await fetch(`${BASE_URL}/videos/user/videos`, {
       method: 'GET',
       headers: headers,
       credentials: 'include',
@@ -151,7 +133,6 @@ export const getUserVideos = async () => {
     
     return await response.json();
   } catch (error) {
-    console.error("Error fetching user videos:", error);
     throw error;
   }
 };
@@ -208,8 +189,6 @@ export const register = async (userData) => {
 };
 
 export const login = async (credentials) => {
-  console.log("Attempting login with:", credentials.email);
-  
   try {
     const response = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
@@ -220,12 +199,8 @@ export const login = async (credentials) => {
       body: JSON.stringify(credentials),
     });
     
-    // Log response status for debugging
-    console.log("Login API response status:", response.status);
-    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("Login API error:", errorData);
       throw new Error(errorData.message || "Login failed");
     }
     
@@ -233,15 +208,11 @@ export const login = async (credentials) => {
     
     // Save token to localStorage
     if (data.token) {
-      console.log("Received token (first 15 chars):", data.token.substring(0, 15) + "...");
       localStorage.setItem('token', data.token);
-    } else {
-      console.warn("No token received in login response");
     }
     
     return data;
   } catch (error) {
-    console.error("Login request error:", error);
     throw error;
   }
 };
@@ -346,58 +317,157 @@ export const checkUserHasChannel = async () => {
 };
 
 // Watch History API functions
-export const fetchWatchHistory = async () => {
+// Fetch watch history with pagination
+export const fetchWatchHistory = async (page = 1, limit = 20) => {
   try {
-    const response = await fetch(`${BASE_URL}/users/history`, {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return [];
+    }
+
+    const response = await fetch(`${BASE_URL}/users/history?page=${page}&limit=${limit}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || "Failed to fetch watch history");
+      const errorText = await response.text();
+      
+      try {
+        // Try to parse as JSON
+        const errorData = JSON.parse(errorText);
+        throw new Error(errorData.message || `Failed to fetch watch history: ${response.status}`);
+      } catch (e) {
+        // If parsing fails, use the text directly
+        throw new Error(`Failed to fetch watch history: ${response.status} - ${errorText.substring(0, 100)}`);
+      }
     }
+
+    const data = await response.json();
     
-    return await response.json();
+    // Handle different response formats from the backend
+    if (data && data.history && Array.isArray(data.history)) {
+      // New paginated format
+      return data.history;
+    } else if (Array.isArray(data)) {
+      // Old format directly returning array
+      return data;
+    } else {
+      return [];
+    }
   } catch (error) {
-    console.error("Error fetching watch history:", error);
-    throw error;
+    return []; // Return empty array instead of throwing to prevent UI errors
   }
 };
 
-// Liked Videos API functions
+// Add video to watch history
+export const addToHistory = async (videoId) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return { success: false, message: "Not authenticated" };
+    }
+
+    const response = await fetch(`${BASE_URL}/users/history/${videoId}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { success: false, message: errorData.message || "Failed to add to history" };
+    }
+
+    const data = await response.json();
+    return { success: true, ...data };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+};
+
+// Clear watch history
+export const clearWatchHistory = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return { success: false, message: "Not authenticated" };
+    }
+
+    const response = await fetch(`${BASE_URL}/users/history`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      
+      try {
+        // Try to parse as JSON
+        const errorData = JSON.parse(errorText);
+        return { 
+          success: false, 
+          message: errorData.message || `Failed to clear watch history: ${response.status}`
+        };
+      } catch (e) {
+        // If parsing fails, use the text directly
+        return { 
+          success: false, 
+          message: `Failed to clear watch history: ${response.status}`
+        };
+      }
+    }
+
+    const data = await response.json();
+    return { success: true, ...data };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+};
+
+// Fetch liked videos
 export const fetchLikedVideos = async () => {
   try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error("No auth token found");
+    }
+
     const response = await fetch(`${BASE_URL}/users/liked-videos`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to fetch liked videos");
     }
-    
+
     return await response.json();
   } catch (error) {
-    console.error("Error fetching liked videos:", error);
     throw error;
   }
 };
 
-// Watch Later API functions
+// Fetch watch later videos
 export const fetchWatchLaterVideos = async () => {
   try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error("No auth token found");
+    }
+
     const response = await fetch(`${BASE_URL}/users/watch-later`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to fetch watch later videos");
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error("Error fetching watch later videos:", error);
@@ -405,19 +475,25 @@ export const fetchWatchLaterVideos = async () => {
   }
 };
 
+// Add video to watch later
 export const addToWatchLater = async (videoId) => {
   try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error("No auth token found");
+    }
+
     const response = await fetch(`${BASE_URL}/users/watch-later/${videoId}`, {
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to add video to watch later");
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error("Error adding to watch later:", error);
@@ -425,26 +501,31 @@ export const addToWatchLater = async (videoId) => {
   }
 };
 
+// Remove video from watch later
 export const removeFromWatchLater = async (videoId) => {
   try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error("No auth token found");
+    }
+
     const response = await fetch(`${BASE_URL}/users/watch-later/${videoId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to remove video from watch later");
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error("Error removing from watch later:", error);
     throw error;
   }
 };
-
 // Playlist API functions
 export const fetchPlaylists = async () => {
   try {
@@ -570,6 +651,7 @@ export const fetchUserVideos = async () => {
   try {
     const headers = getAuthHeaders();
     
+    // Using the correct endpoint for user videos
     const response = await fetch(`${BASE_URL}/videos/user/videos`, {
       method: 'GET',
       headers: headers,
@@ -578,10 +660,23 @@ export const fetchUserVideos = async () => {
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      
+      // Special case for when user doesn't have a channel
+      if (response.status === 403 && errorData.hasChannel === false) {
+        return { 
+          hasChannel: false, 
+          videos: [] 
+        };
+      }
+      
       throw new Error(errorData.message || "Failed to fetch user videos");
     }
     
-    return await response.json();
+    const data = await response.json();
+    console.log("User videos response:", data); // Log response for debugging
+    
+    // Return the data as is - backend returns { videos, hasChannel }
+    return data;
   } catch (error) {
     console.error("Error fetching user videos:", error);
     throw error;

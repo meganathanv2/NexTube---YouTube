@@ -46,7 +46,7 @@ function Sidebar() {
             
             <li>
               <Link to="/your-videos" className="flex items-center space-x-3 text-gray-700 hover:text-blue-600">
-                <span>�</span>
+                <span>📹</span>
                 <span>Your videos</span>
               </Link>
             </li>
@@ -60,7 +60,7 @@ function Sidebar() {
             
             <li>
               <Link to="/liked-videos" className="flex items-center space-x-3 text-gray-700 hover:text-blue-600">
-                <span>�</span>
+                <span>👍</span>
                 <span>Liked videos</span>
               </Link>
             </li>

@@ -19,4 +19,9 @@ const videoSchema = new mongoose.Schema({
   ],
 }, { timestamps: true });
 
+// Index for faster queries
+videoSchema.index({ createdBy: 1 });
+videoSchema.index({ likes: 1 });
+videoSchema.index({ viewedBy: 1 });
+
 export default mongoose.model("Video", videoSchema);
