@@ -28,7 +28,7 @@ const app = express();
 // Middleware
 const allowedOrigins = [
   'http://localhost:5173',
-  process.env.CLIENT_URL,
+  'https://nextube-nine.vercel.app',
 ];
 
 app.use(cors({
