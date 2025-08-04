@@ -12,7 +12,14 @@ import channelRoutes from "./routes/channel.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import playlistRoutes from "./routes/playlist.routes.js";
 
-dotenv.config();
+// Load environment variables
+const result = dotenv.config();
+if (result.error) {
+  console.error("Error loading .env file:", result.error);
+}
+
+// Check if dotenv loaded successfully
+console.log(".env file loaded:", !result.error);
 
 // Validate environment variables
 const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
@@ -80,9 +87,14 @@ app.use((err, req, res, next) => {
 });
 
 // MongoDB Connection
+console.log("Attempting to connect to MongoDB...");
+console.log("MongoDB URI defined:", !!process.env.MONGO_URI);
+
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
 })
   .then(() => {
     console.log("✅ MongoDB Connected");
@@ -90,6 +102,21 @@ mongoose.connect(process.env.MONGO_URI, {
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => {
-    console.error("❌ MongoDB Connection Error:", err);
-    process.exit(1);
+    console.error("❌ MongoDB Connection Error:");
+    console.error(`Error name: ${err.name}`);
+    console.error(`Error message: ${err.message}`);
+    
+    // Check for common connection issues
+    if (err.name === 'MongoNetworkError') {
+      console.error("Network connectivity issue - check your internet connection or Atlas status");
+    } else if (err.message.includes('Authentication failed')) {
+      console.error("Authentication failed - check your username and password");
+    } else if (err.message.includes('connect ECONNREFUSED')) {
+      console.error("Connection refused - check if IP is whitelisted on Atlas");
+    }
+    
+    // Don't exit in development to allow fixing the issue
+    if (isProduction) {
+      process.exit(1);
+    }
   });
